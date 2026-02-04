@@ -22,9 +22,11 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
-	logf "sigs.k8s.io/controller-runtime/pkg/log"
 
 	k8sv1alpha1 "github.com/kenmoini/k8s-node-image-pool-operator/api/v1alpha1"
+	corev1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/labels"
+	"k8s.io/apimachinery/pkg/selection"
 )
 
 // NodeImagePoolReconciler reconciles a NodeImagePool object
@@ -33,6 +35,24 @@ type NodeImagePoolReconciler struct {
 	Scheme *runtime.Scheme
 }
 
+func NodeMatches(node *corev1.Node, expressions []corev1.NodeSelectorRequirement) (bool, error) {
+	// 1. Create a selector
+	selector := labels.NewSelector()
+
+	for _, expr := range expressions {
+		// Convert Operator to string (In, NotIn, Exists, DoesNotExist)
+		req, err := labels.NewRequirement(expr.Key, selection.Operator(expr.Operator), expr.Values)
+		if err != nil {
+			return false, err
+		}
+		selector = selector.Add(*req)
+	}
+
+	// 2. Evaluate against node labels
+	return selector.Matches(labels.Set(node.Labels)), nil
+}
+
+// +kubebuilder:rbac:groups=core,resources=nodes,verbs=get;list;watch
 // +kubebuilder:rbac:groups=k8s.armillary.io,resources=nodeimagepools,verbs=get;list;watch;create;update;patch;delete
 // +kubebuilder:rbac:groups=k8s.armillary.io,resources=nodeimagepools/status,verbs=get;update;patch
 // +kubebuilder:rbac:groups=k8s.armillary.io,resources=nodeimagepools/finalizers,verbs=update
@@ -47,7 +67,65 @@ type NodeImagePoolReconciler struct {
 // For more details, check Reconcile and its Result here:
 // - https://pkg.go.dev/sigs.k8s.io/controller-runtime@v0.21.0/pkg/reconcile
 func (r *NodeImagePoolReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
-	_ = logf.FromContext(ctx)
+	globalLog = ctrl.Log.WithName("k8s-node-image-pool-controller")
+
+	nodeImagePool := &k8sv1alpha1.NodeImagePool{}
+	globalLog.Info("Reconciling NodeImagePool", "name", req.NamespacedName)
+
+	if err := r.Get(ctx, req.NamespacedName, nodeImagePool); err != nil {
+		globalLog.Error(err, "unable to fetch NodeImagePool")
+		// we'll ignore not-found errors, since they can't be fixed by an immediate requeue
+		return ctrl.Result{}, client.IgnoreNotFound(err)
+	} else {
+		globalLog.Info("Fetched NodeImagePool", "spec", nodeImagePool.Spec)
+		logger := ctrl.Log.WithName(nodeImagePool.Name)
+
+		// ===========================================================================
+		// Basic validation checks
+		// ===========================================================================
+
+		// Get the list of nodes in the cluster
+		nodes := &corev1.NodeList{}
+		listOpts := []client.ListOption{}
+
+		// Get all the Nodes
+		if err := r.List(ctx, nodes, listOpts...); err != nil {
+			logger.Error(err, "Failed to list nodes")
+			return ctrl.Result{}, err
+		}
+		logger.Info("Total nodes in cluster", "count", len(nodes.Items))
+
+		// Check to see if CachePools are defined
+		if len(nodeImagePool.Spec.CachePools) == 0 {
+			logger.Info("No CachePools defined, skipping reconciliation")
+			return ctrl.Result{}, nil
+		} else {
+			logger.Info("CachePools defined", "count", len(nodeImagePool.Spec.CachePools))
+			for _, node := range nodes.Items {
+				// Check to see if any nodes match the CachePools selectors
+				// Loop through each CachePool and match against node labels
+				for _, cachePool := range nodeImagePool.Spec.CachePools {
+					matches := false
+					var err error
+					matches, err = NodeMatches(&node, cachePool.MatchExpressions)
+					if err != nil {
+						logger.Error(err, "Error matching node to CachePool", "node", node.Name, "cachePool", cachePool.Name)
+						continue
+					}
+
+					if matches {
+						logger.Info("Node matches CachePool", "node", node.Name, "cachePool", cachePool.Name)
+					}
+				}
+			}
+		}
+
+		// Check to see if CacheConsumers are defined
+		if len(nodeImagePool.Spec.CacheConsumers) == 0 {
+			logger.Info("No CacheConsumers defined, skipping reconciliation")
+			return ctrl.Result{}, nil
+		}
+	}
 
 	// TODO(user): your logic here
 

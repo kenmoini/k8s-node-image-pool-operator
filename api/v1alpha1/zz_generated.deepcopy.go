@@ -21,8 +21,7 @@ limitations under the License.
 package v1alpha1
 
 import (
-	corev1 "k8s.io/api/core/v1"
-	"k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/api/core/v1"
 	runtime "k8s.io/apimachinery/pkg/runtime"
 )
 
@@ -38,14 +37,14 @@ func (in *CachePools) DeepCopyInto(out *CachePools) {
 	}
 	if in.MatchExpressions != nil {
 		in, out := &in.MatchExpressions, &out.MatchExpressions
-		*out = make([]v1.LabelSelectorRequirement, len(*in))
+		*out = make([]v1.NodeSelectorRequirement, len(*in))
 		for i := range *in {
 			(*in)[i].DeepCopyInto(&(*out)[i])
 		}
 	}
 	if in.Tolerations != nil {
 		in, out := &in.Tolerations, &out.Tolerations
-		*out = make([]corev1.Toleration, len(*in))
+		*out = make([]v1.Toleration, len(*in))
 		for i := range *in {
 			(*in)[i].DeepCopyInto(&(*out)[i])
 		}
@@ -175,8 +174,20 @@ func (in *NodeImagePoolSpec) DeepCopyInto(out *NodeImagePoolSpec) {
 		*out = make([]string, len(*in))
 		copy(*out, *in)
 	}
-	in.CachePools.DeepCopyInto(&out.CachePools)
-	in.CacheConsumers.DeepCopyInto(&out.CacheConsumers)
+	if in.CachePools != nil {
+		in, out := &in.CachePools, &out.CachePools
+		*out = make([]CachePools, len(*in))
+		for i := range *in {
+			(*in)[i].DeepCopyInto(&(*out)[i])
+		}
+	}
+	if in.CacheConsumers != nil {
+		in, out := &in.CacheConsumers, &out.CacheConsumers
+		*out = make([]CachePools, len(*in))
+		for i := range *in {
+			(*in)[i].DeepCopyInto(&(*out)[i])
+		}
+	}
 	out.NodeAuthentication = in.NodeAuthentication
 	out.ExternalAccess = in.ExternalAccess
 }

@@ -1,0 +1,276 @@
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  annotations:
+    controller-gen.kubebuilder.io/version: v0.18.0
+  creationTimestamp: null
+  name: nodeimagepools.k8s.armillary.io
+spec:
+  group: k8s.armillary.io
+  names:
+    kind: NodeImagePool
+    listKind: NodeImagePoolList
+    plural: nodeimagepools
+    singular: nodeimagepool
+  scope: Cluster
+  versions:
+  - name: v1alpha1
+    schema:
+      openAPIV3Schema:
+        description: NodeImagePool is the Schema for the nodeimagepools API.
+        properties:
+          apiVersion:
+            description: |-
+              APIVersion defines the versioned schema of this representation of an object.
+              Servers should convert recognized schemas to the latest internal value, and
+              may reject unrecognized values.
+              More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources
+            type: string
+          kind:
+            description: |-
+              Kind is a string value representing the REST resource this object represents.
+              Servers may infer this from the endpoint the client submits requests to.
+              Cannot be updated.
+              In CamelCase.
+              More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds
+            type: string
+          metadata:
+            type: object
+          spec:
+            description: NodeImagePoolSpec defines the desired state of NodeImagePool.
+            properties:
+              cacheConsumers:
+                description: CacheConsumers allows for selecting nodes that will use
+                  the local cache/mirror
+                properties:
+                  matchExpressions:
+                    description: MatchExpressions selects nodes based on label expressions
+                    items:
+                      description: |-
+                        A label selector requirement is a selector that contains values, a key, and an operator that
+                        relates the key and values.
+                      properties:
+                        key:
+                          description: key is the label key that the selector applies
+                            to.
+                          type: string
+                        operator:
+                          description: |-
+                            operator represents a key's relationship to a set of values.
+                            Valid operators are In, NotIn, Exists and DoesNotExist.
+                          type: string
+                        values:
+                          description: |-
+                            values is an array of string values. If the operator is In or NotIn,
+                            the values array must be non-empty. If the operator is Exists or DoesNotExist,
+                            the values array must be empty. This array is replaced during a strategic
+                            merge patch.
+                          items:
+                            type: string
+                          type: array
+                          x-kubernetes-list-type: atomic
+                      required:
+                      - key
+                      - operator
+                      type: object
+                    type: array
+                  matchLabels:
+                    additionalProperties:
+                      type: string
+                    description: MatchLabels selects nodes based on labels
+                    type: object
+                  name:
+                    description: Name is a human readable name for the pool
+                    type: string
+                  tolerations:
+                    description: Tolerations allows scheduling on tainted nodes
+                    items:
+                      description: |-
+                        The pod this Toleration is attached to tolerates any taint that matches
+                        the triple <key,value,effect> using the matching operator <operator>.
+                      properties:
+                        effect:
+                          description: |-
+                            Effect indicates the taint effect to match. Empty means match all taint effects.
+                            When specified, allowed values are NoSchedule, PreferNoSchedule and NoExecute.
+                          type: string
+                        key:
+                          description: |-
+                            Key is the taint key that the toleration applies to. Empty means match all taint keys.
+                            If the key is empty, operator must be Exists; this combination means to match all values and all keys.
+                          type: string
+                        operator:
+                          description: |-
+                            Operator represents a key's relationship to the value.
+                            Valid operators are Exists and Equal. Defaults to Equal.
+                            Exists is equivalent to wildcard for value, so that a pod can
+                            tolerate all taints of a particular category.
+                          type: string
+                        tolerationSeconds:
+                          description: |-
+                            TolerationSeconds represents the period of time the toleration (which must be
+                            of effect NoExecute, otherwise this field is ignored) tolerates the taint. By default,
+                            it is not set, which means tolerate the taint forever (do not evict). Zero and
+                            negative values will be treated as 0 (evict immediately) by the system.
+                          format: int64
+                          type: integer
+                        value:
+                          description: |-
+                            Value is the taint value the toleration matches to.
+                            If the operator is Exists, the value should be empty, otherwise just a regular string.
+                          type: string
+                      type: object
+                    type: array
+                type: object
+              cachePools:
+                description: CachePools allows for selecting nodes that the local
+                  cache/mirror will run on
+                properties:
+                  matchExpressions:
+                    description: MatchExpressions selects nodes based on label expressions
+                    items:
+                      description: |-
+                        A label selector requirement is a selector that contains values, a key, and an operator that
+                        relates the key and values.
+                      properties:
+                        key:
+                          description: key is the label key that the selector applies
+                            to.
+                          type: string
+                        operator:
+                          description: |-
+                            operator represents a key's relationship to a set of values.
+                            Valid operators are In, NotIn, Exists and DoesNotExist.
+                          type: string
+                        values:
+                          description: |-
+                            values is an array of string values. If the operator is In or NotIn,
+                            the values array must be non-empty. If the operator is Exists or DoesNotExist,
+                            the values array must be empty. This array is replaced during a strategic
+                            merge patch.
+                          items:
+                            type: string
+                          type: array
+                          x-kubernetes-list-type: atomic
+                      required:
+                      - key
+                      - operator
+                      type: object
+                    type: array
+                  matchLabels:
+                    additionalProperties:
+                      type: string
+                    description: MatchLabels selects nodes based on labels
+                    type: object
+                  name:
+                    description: Name is a human readable name for the pool
+                    type: string
+                  tolerations:
+                    description: Tolerations allows scheduling on tainted nodes
+                    items:
+                      description: |-
+                        The pod this Toleration is attached to tolerates any taint that matches
+                        the triple <key,value,effect> using the matching operator <operator>.
+                      properties:
+                        effect:
+                          description: |-
+                            Effect indicates the taint effect to match. Empty means match all taint effects.
+                            When specified, allowed values are NoSchedule, PreferNoSchedule and NoExecute.
+                          type: string
+                        key:
+                          description: |-
+                            Key is the taint key that the toleration applies to. Empty means match all taint keys.
+                            If the key is empty, operator must be Exists; this combination means to match all values and all keys.
+                          type: string
+                        operator:
+                          description: |-
+                            Operator represents a key's relationship to the value.
+                            Valid operators are Exists and Equal. Defaults to Equal.
+                            Exists is equivalent to wildcard for value, so that a pod can
+                            tolerate all taints of a particular category.
+                          type: string
+                        tolerationSeconds:
+                          description: |-
+                            TolerationSeconds represents the period of time the toleration (which must be
+                            of effect NoExecute, otherwise this field is ignored) tolerates the taint. By default,
+                            it is not set, which means tolerate the taint forever (do not evict). Zero and
+                            negative values will be treated as 0 (evict immediately) by the system.
+                          format: int64
+                          type: integer
+                        value:
+                          description: |-
+                            Value is the taint value the toleration matches to.
+                            If the operator is Exists, the value should be empty, otherwise just a regular string.
+                          type: string
+                      type: object
+                    type: array
+                type: object
+              externalAccess:
+                description: ExternalAccess enables access to the cache/mirror from
+                  outside the cluster
+                properties:
+                  authProvider:
+                    default: None
+                    description: "AuthProvider indicates the external access authentication
+                      provider type.  Valid options are \"None\", \"Basic\", and \"OIDC\".\tDefault
+                      is \"None\"."
+                    enum:
+                    - None
+                    - Basic
+                    - OIDC
+                    type: string
+                  enabled:
+                    description: Enabled indicates whether external access is enabled
+                    type: boolean
+                  ingress:
+                    description: Ingress settings for management of entrypoints
+                    properties:
+                      type:
+                        default: None
+                        description: "Type indicates the Ingress type.  Valid options
+                          are \"None\", \"LoadBalancer\", \"Ingress\", and \"OpenShiftRoute\".\tDefault
+                          is \"None\"."
+                        enum:
+                        - None
+                        - LoadBalancer
+                        - Ingress
+                        - OpenShiftRoute
+                        type: string
+                    type: object
+                type: object
+              mirrorFiltering:
+                description: MirrorFiltering provides a way to only cache/mirror certain
+                  endpoints
+                items:
+                  type: string
+                type: array
+              nodeAuthentication:
+                description: NodeAuthentication provides credentials for nodes to
+                  access the cache/mirror
+                properties:
+                  provider:
+                    default: None
+                    description: "Provider indicates the authentication provider type.
+                      \ Valid options are \"None\", \"ServiceAccount\", and \"OIDC\".\tDefault
+                      is \"None\"."
+                    enum:
+                    - None
+                    - ServiceAccount
+                    - OIDC
+                    type: string
+                type: object
+            type: object
+          status:
+            description: NodeImagePoolStatus defines the observed state of NodeImagePool.
+            type: object
+        type: object
+    served: true
+    storage: true
+    subresources:
+      status: {}
+status:
+  acceptedNames:
+    kind: ""
+    plural: ""
+  conditions: null
+  storedVersions: null

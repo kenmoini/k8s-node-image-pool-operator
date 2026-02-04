@@ -33,10 +33,10 @@ type NodeImagePoolSpec struct {
 	MirrorFiltering []string `json:"mirrorFiltering,omitempty"`
 
 	// CachePools allows for selecting nodes that the local cache/mirror will run on
-	CachePools CachePools `json:"cachePools,omitempty"`
+	CachePools []CachePools `json:"cachePools,omitempty"`
 
 	// CacheConsumers allows for selecting nodes that will use the local cache/mirror
-	CacheConsumers CachePools `json:"cacheConsumers,omitempty"`
+	CacheConsumers []CachePools `json:"cacheConsumers,omitempty"`
 
 	// NodeAuthentication provides credentials for nodes to access the cache/mirror
 	NodeAuthentication NodeAuthentication `json:"nodeAuthentication,omitempty"`
@@ -54,7 +54,7 @@ type CachePools struct {
 	MatchLabels map[string]string `json:"matchLabels,omitempty"`
 
 	// MatchExpressions selects nodes based on label expressions
-	MatchExpressions []metav1.LabelSelectorRequirement `json:"matchExpressions,omitempty"`
+	MatchExpressions []corev1.NodeSelectorRequirement `json:"matchExpressions,omitempty"`
 
 	// Tolerations allows scheduling on tainted nodes
 	Tolerations []corev1.Toleration `json:"tolerations,omitempty"`

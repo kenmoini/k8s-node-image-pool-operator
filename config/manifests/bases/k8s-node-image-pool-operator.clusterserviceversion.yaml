@@ -1,0 +1,55 @@
+apiVersion: operators.coreos.com/v1alpha1
+kind: ClusterServiceVersion
+metadata:
+  annotations:
+    alm-examples: '[]'
+    capabilities: Basic Install
+  name: k8s-node-image-pool-operator.v0.0.0
+  namespace: placeholder
+spec:
+  apiservicedefinitions: {}
+  customresourcedefinitions:
+    owned:
+    - description: NodeImagePool is the Schema for the nodeimagepools API.
+      displayName: Node Image Pool
+      kind: NodeImagePool
+      name: nodeimagepools.k8s.armillary.io
+      version: v1alpha1
+  description: Allows for nodes to serve images they have locally cached for other
+    nodes in the cluster to efficiently pull from
+  displayName: Kubernetes Node Image Pool Operator
+  icon:
+  - base64data: ""
+    mediatype: ""
+  install:
+    spec:
+      deployments: null
+    strategy: ""
+  installModes:
+  - supported: false
+    type: OwnNamespace
+  - supported: false
+    type: SingleNamespace
+  - supported: false
+    type: MultiNamespace
+  - supported: true
+    type: AllNamespaces
+  keywords:
+  - node
+  - image
+  - cache
+  - mirror
+  - proxy
+  - kubernetes
+  - openshift
+  links:
+  - name: K8s Node Image Pool Operator
+    url: https://k8s-node-image-pool-operator.domain
+  maintainers:
+  - email: ken@kenmoini.com
+    name: Ken Moini
+  maturity: alpha
+  provider:
+    name: Armillary
+    url: https://armillary.io
+  version: 0.0.0
