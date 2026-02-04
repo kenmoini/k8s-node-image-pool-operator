@@ -17,6 +17,7 @@ limitations under the License.
 package v1alpha1
 
 import (
+	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
@@ -28,8 +29,72 @@ type NodeImagePoolSpec struct {
 	// INSERT ADDITIONAL SPEC FIELDS - desired state of cluster
 	// Important: Run "make" to regenerate code after modifying this file
 
-	// Foo is an example field of NodeImagePool. Edit nodeimagepool_types.go to remove/update
-	Foo string `json:"foo,omitempty"`
+	// MirrorFiltering provides a way to only cache/mirror certain endpoints
+	MirrorFiltering []string `json:"mirrorFiltering,omitempty"`
+
+	// CachePools allows for selecting nodes that the local cache/mirror will run on
+	CachePools CachePools `json:"cachePools,omitempty"`
+
+	// CacheConsumers allows for selecting nodes that will use the local cache/mirror
+	CacheConsumers CachePools `json:"cacheConsumers,omitempty"`
+
+	// NodeAuthentication provides credentials for nodes to access the cache/mirror
+	NodeAuthentication NodeAuthentication `json:"nodeAuthentication,omitempty"`
+
+	// ExternalAccess enables access to the cache/mirror from outside the cluster
+	ExternalAccess ExternalAccess `json:"externalAccess,omitempty"`
+}
+
+// CachePools defines the node selection for caching/mirroring
+type CachePools struct {
+	// Name is a human readable name for the pool
+	Name string `json:"name,omitempty"`
+
+	// MatchLabels selects nodes based on labels
+	MatchLabels map[string]string `json:"matchLabels,omitempty"`
+
+	// MatchExpressions selects nodes based on label expressions
+	MatchExpressions []metav1.LabelSelectorRequirement `json:"matchExpressions,omitempty"`
+
+	// Tolerations allows scheduling on tainted nodes
+	Tolerations []corev1.Toleration `json:"tolerations,omitempty"`
+}
+
+// NodeAuthentication provides credentials for nodes to access the cache/mirror
+type NodeAuthentication struct {
+	// Provider indicates the authentication provider type.  Valid options are "None", "ServiceAccount", and "OIDC".	Default is "None".
+	//
+	// +kubebuilder:validation:Enum=None;ServiceAccount;OIDC
+	// +kubebuilder:default=None
+	Provider string `json:"provider,omitempty"`
+
+	// ServiceAccount and OIDC settings would go here - to be implemented in future versions
+}
+
+// ExternalAccess enables access to the cache/mirror from outside the cluster
+type ExternalAccess struct {
+	// Enabled indicates whether external access is enabled
+	Enabled bool `json:"enabled,omitempty"`
+
+	// Ingress settings for management of entrypoints
+	Ingress ExternalAccessIngress `json:"ingress,omitempty"`
+
+	// AuthProvider indicates the external access authentication provider type.  Valid options are "None", "Basic", and "OIDC".	Default is "None".
+	//
+	// +kubebuilder:validation:Enum=None;Basic;OIDC
+	// +kubebuilder:default=None
+	AuthProvider string `json:"authProvider,omitempty"`
+
+	// Basic and OIDC settings would go here - to be implemented in future versions
+}
+
+// ExternalAccessIngress defines ingress settings for external access
+type ExternalAccessIngress struct {
+	// Type indicates the Ingress type.  Valid options are "None", "LoadBalancer", "Ingress", and "OpenShiftRoute".	Default is "None".
+	//
+	// +kubebuilder:validation:Enum=None;LoadBalancer;Ingress;OpenShiftRoute
+	// +kubebuilder:default=None
+	Type string `json:"type,omitempty"`
 }
 
 // NodeImagePoolStatus defines the observed state of NodeImagePool.
