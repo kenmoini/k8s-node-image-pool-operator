@@ -18,6 +18,7 @@ package controller
 
 import (
 	"context"
+	"fmt"
 
 	"k8s.io/apimachinery/pkg/runtime"
 	ctrl "sigs.k8s.io/controller-runtime"
@@ -35,21 +36,62 @@ type NodeImagePoolReconciler struct {
 	Scheme *runtime.Scheme
 }
 
-func NodeMatches(node *corev1.Node, expressions []corev1.NodeSelectorRequirement) (bool, error) {
+func NodeMatches(node *corev1.Node, pool k8sv1alpha1.CachePools) (bool, error) {
 	// 1. Create a selector
 	selector := labels.NewSelector()
 
-	for _, expr := range expressions {
-		// Convert Operator to string (In, NotIn, Exists, DoesNotExist)
-		req, err := labels.NewRequirement(expr.Key, selection.Operator(expr.Operator), expr.Values)
+	// 2. Add MatchLabels as requirements (using Equals operator)
+	for key, value := range pool.MatchLabels {
+		req, err := labels.NewRequirement(key, selection.Equals, []string{value})
 		if err != nil {
-			return false, err
+			return false, fmt.Errorf("invalid matchLabel %s=%s: %w", key, value, err)
 		}
 		selector = selector.Add(*req)
 	}
 
-	// 2. Evaluate against node labels
+	// 3. Add MatchExpressions as requirements
+	for _, expr := range pool.MatchExpressions {
+		// Map NodeSelectorOperator to selection.Operator
+		var op selection.Operator
+		switch expr.Operator {
+		case corev1.NodeSelectorOpIn:
+			op = selection.In
+		case corev1.NodeSelectorOpNotIn:
+			op = selection.NotIn
+		case corev1.NodeSelectorOpExists:
+			op = selection.Exists
+		case corev1.NodeSelectorOpDoesNotExist:
+			op = selection.DoesNotExist
+		case corev1.NodeSelectorOpGt:
+			op = selection.GreaterThan
+		case corev1.NodeSelectorOpLt:
+			op = selection.LessThan
+		default:
+			return false, fmt.Errorf("unsupported operator %s for key %s", expr.Operator, expr.Key)
+		}
+
+		req, err := labels.NewRequirement(expr.Key, op, expr.Values)
+		if err != nil {
+			return false, fmt.Errorf("invalid matchExpression for key %s: %w", expr.Key, err)
+		}
+		selector = selector.Add(*req)
+	}
+
+	// 4. Evaluate against node labels (both MatchLabels and MatchExpressions must match - AND logic)
 	return selector.Matches(labels.Set(node.Labels)), nil
+}
+
+// hasAnySelector checks if a CachePool has any selectors defined
+func hasAnySelector(pool k8sv1alpha1.CachePools) bool {
+	return len(pool.MatchLabels) > 0 || len(pool.MatchExpressions) > 0
+}
+
+// validateCachePoolSelector validates that a CachePool has valid selectors
+func validateCachePoolSelector(pool k8sv1alpha1.CachePools) error {
+	if !hasAnySelector(pool) {
+		return fmt.Errorf("cachePool '%s' has no selectors defined", pool.Name)
+	}
+	return nil
 }
 
 // +kubebuilder:rbac:groups=core,resources=nodes,verbs=get;list;watch
@@ -105,9 +147,15 @@ func (r *NodeImagePoolReconciler) Reconcile(ctx context.Context, req ctrl.Reques
 				// Check to see if any nodes match the CachePools selectors
 				// Loop through each CachePool and match against node labels
 				for _, cachePool := range nodeImagePool.Spec.CachePools {
+					// Validate that the CachePool has selectors defined
+					if err := validateCachePoolSelector(cachePool); err != nil {
+						logger.Info("Skipping CachePool with no selectors", "cachePool", cachePool.Name)
+						continue
+					}
+
 					matches := false
 					var err error
-					matches, err = NodeMatches(&node, cachePool.MatchExpressions)
+					matches, err = NodeMatches(&node, cachePool)
 					if err != nil {
 						logger.Error(err, "Error matching node to CachePool", "node", node.Name, "cachePool", cachePool.Name)
 						continue
@@ -115,6 +163,8 @@ func (r *NodeImagePoolReconciler) Reconcile(ctx context.Context, req ctrl.Reques
 
 					if matches {
 						logger.Info("Node matches CachePool", "node", node.Name, "cachePool", cachePool.Name)
+					} else {
+						logger.Info("Node does not match CachePool", "node", node.Name, "cachePool", cachePool.Name)
 					}
 				}
 			}
@@ -124,6 +174,33 @@ func (r *NodeImagePoolReconciler) Reconcile(ctx context.Context, req ctrl.Reques
 		if len(nodeImagePool.Spec.CacheConsumers) == 0 {
 			logger.Info("No CacheConsumers defined, skipping reconciliation")
 			return ctrl.Result{}, nil
+		} else {
+			logger.Info("CacheConsumers defined", "count", len(nodeImagePool.Spec.CacheConsumers))
+			// Check to see if any nodes match the CacheConsumers selectors
+			// Loop through each CacheConsumer and match against node labels
+			for _, node := range nodes.Items {
+				for _, cacheConsumer := range nodeImagePool.Spec.CacheConsumers {
+					// Validate that the CacheConsumer has selectors defined
+					if err := validateCachePoolSelector(cacheConsumer); err != nil {
+						logger.Info("Skipping CacheConsumer with no selectors", "cacheConsumer", cacheConsumer.Name)
+						continue
+					}
+
+					matches := false
+					var err error
+					matches, err = NodeMatches(&node, cacheConsumer)
+					if err != nil {
+						logger.Error(err, "Error matching node to CacheConsumer", "node", node.Name, "cacheConsumer", cacheConsumer.Name)
+						continue
+					}
+
+					if matches {
+						logger.Info("Node matches CacheConsumer", "node", node.Name, "cacheConsumer", cacheConsumer.Name)
+					} else {
+						logger.Info("Node does not match CacheConsumer", "node", node.Name, "cacheConsumer", cacheConsumer.Name)
+					}
+				}
+			}
 		}
 	}
 

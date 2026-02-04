@@ -9,7 +9,19 @@ spec:
     - name: control-plane-pool
       matchLabels:
         node-role.kubernetes.io/master: ''
+      matchExpressions:
+        - key: beta.kubernetes.io/arch
+          operator: In
+          values:
+            - amd64
+            - arm64
   cacheConsumers:
     - name: worker-pool
       matchLabels:
         node-role.kubernetes.io/worker: ''
+      matchExpressions:
+        - key: beta.kubernetes.io/arch
+          operator: In
+          values:
+            - amd64
+            - arm64
