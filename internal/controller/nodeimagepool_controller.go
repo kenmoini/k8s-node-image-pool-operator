@@ -18,16 +18,16 @@ package controller
 
 import (
 	"context"
-	"fmt"
+	"strconv"
 
 	"k8s.io/apimachinery/pkg/runtime"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	k8sv1alpha1 "github.com/kenmoini/k8s-node-image-pool-operator/api/v1alpha1"
+	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
-	"k8s.io/apimachinery/pkg/labels"
-	"k8s.io/apimachinery/pkg/selection"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
 // NodeImagePoolReconciler reconciles a NodeImagePool object
@@ -36,65 +36,8 @@ type NodeImagePoolReconciler struct {
 	Scheme *runtime.Scheme
 }
 
-func NodeMatches(node *corev1.Node, pool k8sv1alpha1.CachePools) (bool, error) {
-	// 1. Create a selector
-	selector := labels.NewSelector()
-
-	// 2. Add MatchLabels as requirements (using Equals operator)
-	for key, value := range pool.MatchLabels {
-		req, err := labels.NewRequirement(key, selection.Equals, []string{value})
-		if err != nil {
-			return false, fmt.Errorf("invalid matchLabel %s=%s: %w", key, value, err)
-		}
-		selector = selector.Add(*req)
-	}
-
-	// 3. Add MatchExpressions as requirements
-	for _, expr := range pool.MatchExpressions {
-		// Map NodeSelectorOperator to selection.Operator
-		var op selection.Operator
-		switch expr.Operator {
-		case corev1.NodeSelectorOpIn:
-			op = selection.In
-		case corev1.NodeSelectorOpNotIn:
-			op = selection.NotIn
-		case corev1.NodeSelectorOpExists:
-			op = selection.Exists
-		case corev1.NodeSelectorOpDoesNotExist:
-			op = selection.DoesNotExist
-		case corev1.NodeSelectorOpGt:
-			op = selection.GreaterThan
-		case corev1.NodeSelectorOpLt:
-			op = selection.LessThan
-		default:
-			return false, fmt.Errorf("unsupported operator %s for key %s", expr.Operator, expr.Key)
-		}
-
-		req, err := labels.NewRequirement(expr.Key, op, expr.Values)
-		if err != nil {
-			return false, fmt.Errorf("invalid matchExpression for key %s: %w", expr.Key, err)
-		}
-		selector = selector.Add(*req)
-	}
-
-	// 4. Evaluate against node labels (both MatchLabels and MatchExpressions must match - AND logic)
-	return selector.Matches(labels.Set(node.Labels)), nil
-}
-
-// hasAnySelector checks if a CachePool has any selectors defined
-func hasAnySelector(pool k8sv1alpha1.CachePools) bool {
-	return len(pool.MatchLabels) > 0 || len(pool.MatchExpressions) > 0
-}
-
-// validateCachePoolSelector validates that a CachePool has valid selectors
-func validateCachePoolSelector(pool k8sv1alpha1.CachePools) error {
-	if !hasAnySelector(pool) {
-		return fmt.Errorf("cachePool '%s' has no selectors defined", pool.Name)
-	}
-	return nil
-}
-
 // +kubebuilder:rbac:groups=core,resources=nodes,verbs=get;list;watch
+// +kubebuilder:rbac:groups=core,resources=namespaces;configmaps,verbs=get;create;update;list;watch
 // +kubebuilder:rbac:groups=k8s.armillary.io,resources=nodeimagepools,verbs=get;list;watch;create;update;patch;delete
 // +kubebuilder:rbac:groups=k8s.armillary.io,resources=nodeimagepools/status,verbs=get;update;patch
 // +kubebuilder:rbac:groups=k8s.armillary.io,resources=nodeimagepools/finalizers,verbs=update
@@ -108,6 +51,7 @@ func validateCachePoolSelector(pool k8sv1alpha1.CachePools) error {
 //
 // For more details, check Reconcile and its Result here:
 // - https://pkg.go.dev/sigs.k8s.io/controller-runtime@v0.21.0/pkg/reconcile
+// nolint: gocyclo
 func (r *NodeImagePoolReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
 	globalLog = ctrl.Log.WithName("k8s-node-image-pool-controller")
 
@@ -129,6 +73,11 @@ func (r *NodeImagePoolReconciler) Reconcile(ctx context.Context, req ctrl.Reques
 		validCachePools := []k8sv1alpha1.CachePools{}
 		validConsumerPools := []k8sv1alpha1.CachePools{}
 
+		// Create mappings of CachePool and CacheConsumer names to their hosts for easy lookup later
+		cachePoolMapping := make(map[string][]string)
+		cachePoolHostIPMapping := make(map[string]string)
+		consumerPoolMapping := make(map[string][]string)
+
 		// Get the list of nodes in the cluster
 		nodes := &corev1.NodeList{}
 		listOpts := []client.ListOption{}
@@ -139,6 +88,14 @@ func (r *NodeImagePoolReconciler) Reconcile(ctx context.Context, req ctrl.Reques
 			return ctrl.Result{}, err
 		}
 		logger.Info("Total nodes in cluster", "count", len(nodes.Items))
+
+		// Make sure mirrorFiltering is defined
+		if len(nodeImagePool.Spec.MirrorFiltering) == 0 {
+			logger.Info("No MirrorFiltering defined, skipping reconciliation")
+			return ctrl.Result{}, nil
+		} else {
+			logger.Info("MirrorFiltering defined", "mirrors", nodeImagePool.Spec.MirrorFiltering)
+		}
 
 		// Check to see if CachePools are defined and validate nodes against them
 		if len(nodeImagePool.Spec.CachePools) == 0 {
@@ -177,6 +134,22 @@ func (r *NodeImagePoolReconciler) Reconcile(ctx context.Context, req ctrl.Reques
 						if !found {
 							validCachePools = append(validCachePools, cachePool)
 						}
+						// Add to cachePoolMapping for easy lookup later if it doesn't already exist
+						if _, exists := cachePoolMapping[cachePool.Name]; !exists {
+							cachePoolMapping[cachePool.Name] = []string{}
+						}
+						// Append the node name to the list for this CachePool if not already present
+						if !containsString(cachePoolMapping[cachePool.Name], node.Name) {
+							cachePoolMapping[cachePool.Name] = append(cachePoolMapping[cachePool.Name], node.Name)
+						}
+						// Store the node's InternalIP for use in the ConfigMap
+						for _, addr := range node.Status.Addresses {
+							if addr.Type == corev1.NodeInternalIP {
+								cachePoolHostIPMapping[node.Name] = addr.Address
+								break
+							}
+						}
+						logger.Info("Node IP for CachePool", "node", node.Name, "ip", cachePoolHostIPMapping[node.Name])
 					} else {
 						logger.Info("Node does not match CachePool", "node", node.Name, "cachePool", cachePool.Name)
 					}
@@ -224,6 +197,15 @@ func (r *NodeImagePoolReconciler) Reconcile(ctx context.Context, req ctrl.Reques
 					} else {
 						logger.Info("Node does not match CacheConsumer", "node", node.Name, "cacheConsumer", cacheConsumer.Name)
 					}
+
+					// Add to consumerPoolMapping for easy lookup later if it doesn't already exist
+					if _, exists := consumerPoolMapping[cacheConsumer.Name]; !exists {
+						consumerPoolMapping[cacheConsumer.Name] = []string{}
+					}
+					// Append the node name to the list for this CacheConsumer if not already present
+					if !containsString(consumerPoolMapping[cacheConsumer.Name], node.Name) {
+						consumerPoolMapping[cacheConsumer.Name] = append(consumerPoolMapping[cacheConsumer.Name], node.Name)
+					}
 				}
 			}
 		}
@@ -237,6 +219,136 @@ func (r *NodeImagePoolReconciler) Reconcile(ctx context.Context, req ctrl.Reques
 			logger.Info("No valid CacheConsumers found after evaluation, skipping reconciliation")
 			return ctrl.Result{}, nil
 		}
+
+		// Print out the cachePoolMapping and consumerPoolMapping for debugging
+		logger.Info("Valid CachePools and their nodes", "mapping", cachePoolMapping)
+		logger.Info("Valid CacheConsumers and their nodes", "mapping", consumerPoolMapping)
+
+		// ===========================================================================
+		// Namespace creation
+		// ===========================================================================
+		// Create the namespace if it doesn't exist
+
+		if err := setupNamespace(ctx, r.Client, logger); err != nil {
+			logger.Error(err, "Failed to setup namespace", "namespace", DefaultNamespace)
+			return ctrl.Result{}, err
+		}
+
+		// ==========================================================================
+		// ConfigMap creation for registry configuration
+		// ==========================================================================
+
+		// The ConfigMap has a key per host in the cachePoolMapping, with the value being
+		// the registry configuration for that host.
+		// The configuration has the mirror specification for each cachePool host, unless
+		// the cachePool host is the same as the current cacheConsumer host, in which case
+		// it is skipped to avoid circular references.
+
+		// Create the ConfigMap data structure
+		// Loop through the consumerPoolMapping then loop through each Node in that pool
+		configMapData := map[string]string{}
+		for consumerPoolName, consumerNodes := range consumerPoolMapping {
+			logger.Info("Processing consumerPool", "consumerPool", consumerPoolName, "nodes", consumerNodes)
+			for _, consumerNodeName := range consumerNodes {
+				configMapData[consumerNodeName] = ""
+				// Loop through the cachePoolMapping to add mirrors, skipping if the cachePool is the same as the consumerPool
+				configData := ""
+				configMirrorData := ""
+				for cachePoolName, cachePoolNodes := range cachePoolMapping {
+					for _, cachePoolNodeName := range cachePoolNodes {
+						if cachePoolNodeName == consumerNodeName {
+							logger.Info("Skipping mirror for cachePool as it matches consumer node", "consumerNode", consumerNodeName, "cachePool", cachePoolName)
+							continue
+						} else {
+							configMirrorData += "  [[registry.mirror]]\n"
+							configMirrorData += "    # Mirror for cachePool " + cachePoolName + " on node " + cachePoolNodeName + "\n"
+							configMirrorData += "    location = \"" + cachePoolHostIPMapping[cachePoolNodeName] + ":" + strconv.Itoa(DefaultHostPort) + "\"\n"
+						}
+
+					}
+				}
+				// Loop through the mirrorFiltering to add the filtered mirrors
+				for _, mirrorHost := range nodeImagePool.Spec.MirrorFiltering {
+					configData += "[[registry]]\n"
+					configData += "  prefix = \"\"\n"
+					configData += "  location = \"" + mirrorHost + "\"\n"
+					configData += configMirrorData
+				}
+				configMapData[consumerNodeName] = configData
+			}
+		}
+
+		configMap := &corev1.ConfigMap{}
+		configMapName := DefaultMirrorConfigMapName
+		err = r.Get(ctx, client.ObjectKey{Name: configMapName, Namespace: DefaultNamespace}, configMap)
+		if err != nil {
+			logger.Info("ConfigMap does not exist, creating", "configMap", configMapName)
+			configMap = &corev1.ConfigMap{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      configMapName,
+					Namespace: DefaultNamespace,
+				},
+				Data: configMapData,
+			}
+
+			if err := r.Create(ctx, configMap); err != nil {
+				logger.Error(err, "Failed to create ConfigMap", "configMap", configMapName)
+				return ctrl.Result{}, err
+			}
+			logger.Info("ConfigMap created successfully", "configMap", configMapName)
+		} else {
+			// Check to see if the data needs to be updated
+			needsUpdate := false
+			for key, value := range configMapData {
+				if existingValue, exists := configMap.Data[key]; !exists || existingValue != value {
+					needsUpdate = true
+					break
+				}
+			}
+			if needsUpdate {
+				logger.Info("ConfigMap data needs update, updating", "configMap", configMapName)
+				configMap.Data = configMapData
+				if err := r.Update(ctx, configMap); err != nil {
+					logger.Error(err, "Failed to update ConfigMap", "configMap", configMapName)
+					return ctrl.Result{}, err
+				}
+				logger.Info("ConfigMap updated successfully", "configMap", configMapName)
+			} else {
+				logger.Info("ConfigMap data is up-to-date", "configMap", configMapName)
+			}
+		}
+
+		// ==========================================================================
+		// DaemonSet creation for registry on each node
+		// ==========================================================================
+
+		// Loop through the validCachePools and create a DaemonSet for each one if it doesn't already exist
+		for _, cachePool := range validCachePools {
+			logger.Info("Processing DaemonSet for CachePool", "cachePool", cachePool.Name)
+			daemonSet := createDaemonSet(cachePool)
+
+			// Check if the DaemonSet already exists
+			existingDaemonSet := &appsv1.DaemonSet{}
+			err := r.Get(ctx, client.ObjectKey{Name: daemonSet.Name, Namespace: DefaultNamespace}, existingDaemonSet)
+			if err != nil {
+				logger.Info("DaemonSet does not exist, creating", "daemonSet", daemonSet.Name)
+				if err := r.Create(ctx, daemonSet); err != nil {
+					logger.Error(err, "Failed to create DaemonSet", "daemonSet", daemonSet.Name)
+					return ctrl.Result{}, err
+				}
+				logger.Info("DaemonSet created successfully", "daemonSet", daemonSet.Name)
+			} else {
+				// Update the DaemonSet anyways
+				existingDaemonSet.Spec = daemonSet.Spec
+				if err := r.Update(ctx, existingDaemonSet); err != nil {
+					logger.Error(err, "Failed to update DaemonSet", "daemonSet", daemonSet.Name)
+					return ctrl.Result{}, err
+				}
+				logger.Info("DaemonSet updated successfully", "daemonSet", daemonSet.Name)
+			}
+
+		}
+
 	}
 
 	return ctrl.Result{}, nil
@@ -248,4 +360,14 @@ func (r *NodeImagePoolReconciler) SetupWithManager(mgr ctrl.Manager) error {
 		For(&k8sv1alpha1.NodeImagePool{}).
 		Named("nodeimagepool").
 		Complete(r)
+}
+
+// containsString checks if a string slice contains a specific string
+func containsString(slice []string, str string) bool {
+	for _, item := range slice {
+		if item == str {
+			return true
+		}
+	}
+	return false
 }

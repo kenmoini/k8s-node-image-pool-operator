@@ -54,7 +54,9 @@ type CachePools struct {
 	MatchLabels map[string]string `json:"matchLabels,omitempty"`
 
 	// MatchExpressions selects nodes based on label expressions
-	MatchExpressions []corev1.NodeSelectorRequirement `json:"matchExpressions,omitempty"`
+	MatchExpressions []metav1.LabelSelectorRequirement `json:"matchExpressions,omitempty"`
+
+	// MatchExpressions []corev1.NodeSelectorRequirement `json:"matchExpressions,omitempty"`
 
 	// Tolerations allows scheduling on tainted nodes
 	Tolerations []corev1.Toleration `json:"tolerations,omitempty"`

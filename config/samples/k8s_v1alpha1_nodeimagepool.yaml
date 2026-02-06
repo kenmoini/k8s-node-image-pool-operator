@@ -5,6 +5,7 @@ metadata:
 spec:
   mirrorFiltering:
     - quay.io/kenmoini
+    - registry.redhat.io
   cachePools:
     - name: control-plane-pool
       matchLabels:

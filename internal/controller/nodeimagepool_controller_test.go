@@ -168,10 +168,10 @@ var _ = Describe("NodeMatches", func() {
 		It("should match with In operator", func() {
 			pool := k8sv1alpha1.CachePools{
 				Name: "test-pool",
-				MatchExpressions: []corev1.NodeSelectorRequirement{
+				MatchExpressions: []metav1.LabelSelectorRequirement{
 					{
 						Key:      "kubernetes.io/arch",
-						Operator: corev1.NodeSelectorOpIn,
+						Operator: metav1.LabelSelectorOpIn,
 						Values:   []string{"amd64", "arm64"},
 					},
 				},
@@ -184,10 +184,10 @@ var _ = Describe("NodeMatches", func() {
 		It("should not match with In operator when value not in list", func() {
 			pool := k8sv1alpha1.CachePools{
 				Name: "test-pool",
-				MatchExpressions: []corev1.NodeSelectorRequirement{
+				MatchExpressions: []metav1.LabelSelectorRequirement{
 					{
 						Key:      "kubernetes.io/arch",
-						Operator: corev1.NodeSelectorOpIn,
+						Operator: metav1.LabelSelectorOpIn,
 						Values:   []string{"arm64", "s390x"},
 					},
 				},
@@ -200,10 +200,10 @@ var _ = Describe("NodeMatches", func() {
 		It("should match with NotIn operator", func() {
 			pool := k8sv1alpha1.CachePools{
 				Name: "test-pool",
-				MatchExpressions: []corev1.NodeSelectorRequirement{
+				MatchExpressions: []metav1.LabelSelectorRequirement{
 					{
 						Key:      "kubernetes.io/arch",
-						Operator: corev1.NodeSelectorOpNotIn,
+						Operator: metav1.LabelSelectorOpNotIn,
 						Values:   []string{"arm64", "s390x"},
 					},
 				},
@@ -216,10 +216,10 @@ var _ = Describe("NodeMatches", func() {
 		It("should match with Exists operator", func() {
 			pool := k8sv1alpha1.CachePools{
 				Name: "test-pool",
-				MatchExpressions: []corev1.NodeSelectorRequirement{
+				MatchExpressions: []metav1.LabelSelectorRequirement{
 					{
 						Key:      "kubernetes.io/arch",
-						Operator: corev1.NodeSelectorOpExists,
+						Operator: metav1.LabelSelectorOpExists,
 					},
 				},
 			}
@@ -231,10 +231,10 @@ var _ = Describe("NodeMatches", func() {
 		It("should not match with DoesNotExist operator when label exists", func() {
 			pool := k8sv1alpha1.CachePools{
 				Name: "test-pool",
-				MatchExpressions: []corev1.NodeSelectorRequirement{
+				MatchExpressions: []metav1.LabelSelectorRequirement{
 					{
 						Key:      "kubernetes.io/arch",
-						Operator: corev1.NodeSelectorOpDoesNotExist,
+						Operator: metav1.LabelSelectorOpDoesNotExist,
 					},
 				},
 			}
@@ -251,10 +251,10 @@ var _ = Describe("NodeMatches", func() {
 				MatchLabels: map[string]string{
 					"node-role.kubernetes.io/worker": "",
 				},
-				MatchExpressions: []corev1.NodeSelectorRequirement{
+				MatchExpressions: []metav1.LabelSelectorRequirement{
 					{
 						Key:      "kubernetes.io/arch",
-						Operator: corev1.NodeSelectorOpIn,
+						Operator: metav1.LabelSelectorOpIn,
 						Values:   []string{"amd64", "arm64"},
 					},
 				},
@@ -270,10 +270,10 @@ var _ = Describe("NodeMatches", func() {
 				MatchLabels: map[string]string{
 					"node-role.kubernetes.io/master": "",
 				},
-				MatchExpressions: []corev1.NodeSelectorRequirement{
+				MatchExpressions: []metav1.LabelSelectorRequirement{
 					{
 						Key:      "kubernetes.io/arch",
-						Operator: corev1.NodeSelectorOpIn,
+						Operator: metav1.LabelSelectorOpIn,
 						Values:   []string{"amd64", "arm64"},
 					},
 				},
@@ -289,10 +289,10 @@ var _ = Describe("NodeMatches", func() {
 				MatchLabels: map[string]string{
 					"node-role.kubernetes.io/worker": "",
 				},
-				MatchExpressions: []corev1.NodeSelectorRequirement{
+				MatchExpressions: []metav1.LabelSelectorRequirement{
 					{
 						Key:      "kubernetes.io/arch",
-						Operator: corev1.NodeSelectorOpIn,
+						Operator: metav1.LabelSelectorOpIn,
 						Values:   []string{"arm64", "s390x"},
 					},
 				},
@@ -309,15 +309,15 @@ var _ = Describe("NodeMatches", func() {
 					"node-role.kubernetes.io/worker": "",
 					"kubernetes.io/os":               "linux",
 				},
-				MatchExpressions: []corev1.NodeSelectorRequirement{
+				MatchExpressions: []metav1.LabelSelectorRequirement{
 					{
 						Key:      "kubernetes.io/arch",
-						Operator: corev1.NodeSelectorOpIn,
+						Operator: metav1.LabelSelectorOpIn,
 						Values:   []string{"amd64", "arm64"},
 					},
 					{
 						Key:      "region",
-						Operator: corev1.NodeSelectorOpExists,
+						Operator: metav1.LabelSelectorOpExists,
 					},
 				},
 			}
@@ -332,7 +332,7 @@ var _ = Describe("NodeMatches", func() {
 			pool := k8sv1alpha1.CachePools{
 				Name:             "test-pool",
 				MatchLabels:      map[string]string{},
-				MatchExpressions: []corev1.NodeSelectorRequirement{},
+				MatchExpressions: []metav1.LabelSelectorRequirement{},
 			}
 			matches, err := NodeMatches(testNode, pool)
 			Expect(err).NotTo(HaveOccurred())
@@ -371,10 +371,10 @@ var _ = Describe("NodeMatches", func() {
 		It("should match when expression checks for non-existence", func() {
 			pool := k8sv1alpha1.CachePools{
 				Name: "test-pool",
-				MatchExpressions: []corev1.NodeSelectorRequirement{
+				MatchExpressions: []metav1.LabelSelectorRequirement{
 					{
 						Key:      "non-existent-label",
-						Operator: corev1.NodeSelectorOpDoesNotExist,
+						Operator: metav1.LabelSelectorOpDoesNotExist,
 					},
 				},
 			}
@@ -400,10 +400,10 @@ var _ = Describe("Helper Functions", func() {
 		It("should return true when MatchExpressions is defined", func() {
 			pool := k8sv1alpha1.CachePools{
 				Name: "test-pool",
-				MatchExpressions: []corev1.NodeSelectorRequirement{
+				MatchExpressions: []metav1.LabelSelectorRequirement{
 					{
 						Key:      "key",
-						Operator: corev1.NodeSelectorOpExists,
+						Operator: metav1.LabelSelectorOpExists,
 					},
 				},
 			}
@@ -416,10 +416,10 @@ var _ = Describe("Helper Functions", func() {
 				MatchLabels: map[string]string{
 					"key": "value",
 				},
-				MatchExpressions: []corev1.NodeSelectorRequirement{
+				MatchExpressions: []metav1.LabelSelectorRequirement{
 					{
 						Key:      "key",
-						Operator: corev1.NodeSelectorOpExists,
+						Operator: metav1.LabelSelectorOpExists,
 					},
 				},
 			}
@@ -430,7 +430,7 @@ var _ = Describe("Helper Functions", func() {
 			pool := k8sv1alpha1.CachePools{
 				Name:             "test-pool",
 				MatchLabels:      map[string]string{},
-				MatchExpressions: []corev1.NodeSelectorRequirement{},
+				MatchExpressions: []metav1.LabelSelectorRequirement{},
 			}
 			Expect(hasAnySelector(pool)).To(BeFalse())
 		})
