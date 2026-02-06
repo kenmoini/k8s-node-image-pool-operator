@@ -1,0 +1,32 @@
+version: 0.1
+log:
+  accesslog:
+    disabled: false
+  level: debug
+  fields:
+    service: registry
+    environment: node-image-pool
+storage:
+  delete:
+    enabled: false
+  cache:
+    blobdescriptor: inmemory
+  filesystem:
+    rootdirectory: /var/lib/registry
+  tag:
+    concurrencylimit: 25
+  maintenance:
+    readonly:
+      enabled: true
+http:
+  addr: :50000
+  debug:
+    addr: :50001
+    prometheus:
+      enabled: true
+      path: /metrics
+health:
+  storagedriver:
+    enabled: true
+    interval: 10s
+    threshold: 3
