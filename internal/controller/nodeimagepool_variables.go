@@ -1,7 +1,7 @@
 package controller
 
 const (
-	DefaultRegistryContainerImage = "registry.redhat.io/rhel9/support-tools:latest"
+	DefaultRegistryContainerImage = "ghcr.io/kenmoini/k8s-node-image-pool-operator-registry:main"
 	DefaultAppLabelValue          = "node-image-pool"
 	DefaultNamespace              = "node-image-pool"
 	DefaultMirrorConfigMapName    = "mirror-config"

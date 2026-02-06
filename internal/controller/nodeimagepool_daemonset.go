@@ -33,6 +33,18 @@ func createDaemonSet(cachePool k8sv1alpha1.CachePools) *appsv1.DaemonSet {
 				},
 				Spec: v1.PodSpec{
 					Tolerations: cachePool.Tolerations,
+					Volumes: []v1.Volume{
+						{
+							Name: "mirror-config-volume",
+							VolumeSource: v1.VolumeSource{
+								ConfigMap: &v1.ConfigMapVolumeSource{
+									LocalObjectReference: v1.LocalObjectReference{
+										Name: DefaultMirrorConfigMapName,
+									},
+								},
+							},
+						},
+					},
 					Containers: []v1.Container{
 						{
 							Name:  "registry-container",
@@ -40,6 +52,55 @@ func createDaemonSet(cachePool k8sv1alpha1.CachePools) *appsv1.DaemonSet {
 							Ports: []v1.ContainerPort{
 								{
 									ContainerPort: DefaultHostPort,
+								},
+							},
+							ImagePullPolicy: v1.PullAlways,
+							Env: []v1.EnvVar{
+								{
+									Name: "MY_NODE_NAME",
+									ValueFrom: &v1.EnvVarSource{
+										FieldRef: &v1.ObjectFieldSelector{
+											FieldPath: "spec.nodeName",
+										},
+									},
+								},
+								{
+									Name: "MY_POD_NAME",
+									ValueFrom: &v1.EnvVarSource{
+										FieldRef: &v1.ObjectFieldSelector{
+											FieldPath: "metadata.name",
+										},
+									},
+								},
+								{
+									Name: "MY_POD_NAMESPACE",
+									ValueFrom: &v1.EnvVarSource{
+										FieldRef: &v1.ObjectFieldSelector{
+											FieldPath: "metadata.namespace",
+										},
+									},
+								},
+								{
+									Name: "MY_POD_IP",
+									ValueFrom: &v1.EnvVarSource{
+										FieldRef: &v1.ObjectFieldSelector{
+											FieldPath: "status.podIP",
+										},
+									},
+								},
+								{
+									Name: "MY_POD_SERVICE_ACCOUNT",
+									ValueFrom: &v1.EnvVarSource{
+										FieldRef: &v1.ObjectFieldSelector{
+											FieldPath: "spec.serviceAccountName",
+										},
+									},
+								},
+							},
+							VolumeMounts: []v1.VolumeMount{
+								{
+									Name:      "mirror-config-volume",
+									MountPath: "/cacheConsumers/" + DefaultMirrorConfigMapName,
 								},
 							},
 						},
