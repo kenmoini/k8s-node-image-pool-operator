@@ -17,7 +17,7 @@ storage:
     concurrencylimit: 25
   maintenance:
     readonly:
-      enabled: true
+      enabled: false
 http:
   addr: :50000
   debug:
