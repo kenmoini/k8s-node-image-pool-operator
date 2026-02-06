@@ -33,6 +33,13 @@ func createDaemonSet(cachePool k8sv1alpha1.CachePools) *appsv1.DaemonSet {
 				},
 				Spec: v1.PodSpec{
 					Tolerations: cachePool.Tolerations,
+					HostNetwork: true,
+					SecurityContext: &v1.PodSecurityContext{
+						RunAsUser: func() *int64 {
+							v := int64(0)
+							return &v
+						}(),
+					},
 					Volumes: []v1.Volume{
 						{
 							Name: "mirror-config-volume",
@@ -41,6 +48,18 @@ func createDaemonSet(cachePool k8sv1alpha1.CachePools) *appsv1.DaemonSet {
 									LocalObjectReference: v1.LocalObjectReference{
 										Name: DefaultMirrorConfigMapName,
 									},
+								},
+							},
+						},
+						{
+							Name: "mirror-config",
+							VolumeSource: v1.VolumeSource{
+								HostPath: &v1.HostPathVolumeSource{
+									Path: "/etc/containers/registries.conf.d/99-node-image-pool.conf",
+									Type: func() *v1.HostPathType {
+										hostPathType := v1.HostPathFileOrCreate
+										return &hostPathType
+									}(),
 								},
 							},
 						},
@@ -102,12 +121,15 @@ func createDaemonSet(cachePool k8sv1alpha1.CachePools) *appsv1.DaemonSet {
 									Name:      "mirror-config-volume",
 									MountPath: "/cacheConsumers/" + DefaultMirrorConfigMapName,
 								},
+								{
+									Name:      "mirror-config",
+									MountPath: "/etc/containers/registries.conf.d/99-node-image-pool.conf",
+								},
 							},
 						},
 					},
 				},
 			},
-			// DaemonSet spec details would go here
 		},
 	}
 	return daemonSet
