@@ -126,6 +126,9 @@ func (r *NodeImagePoolReconciler) Reconcile(ctx context.Context, req ctrl.Reques
 		// Basic validation checks
 		// ===========================================================================
 
+		validCachePools := []k8sv1alpha1.CachePools{}
+		validConsumerPools := []k8sv1alpha1.CachePools{}
+
 		// Get the list of nodes in the cluster
 		nodes := &corev1.NodeList{}
 		listOpts := []client.ListOption{}
@@ -137,7 +140,7 @@ func (r *NodeImagePoolReconciler) Reconcile(ctx context.Context, req ctrl.Reques
 		}
 		logger.Info("Total nodes in cluster", "count", len(nodes.Items))
 
-		// Check to see if CachePools are defined
+		// Check to see if CachePools are defined and validate nodes against them
 		if len(nodeImagePool.Spec.CachePools) == 0 {
 			logger.Info("No CachePools defined, skipping reconciliation")
 			return ctrl.Result{}, nil
@@ -163,6 +166,17 @@ func (r *NodeImagePoolReconciler) Reconcile(ctx context.Context, req ctrl.Reques
 
 					if matches {
 						logger.Info("Node matches CachePool", "node", node.Name, "cachePool", cachePool.Name)
+						// Add to validCachePools if not already present
+						found := false
+						for _, vcp := range validCachePools {
+							if vcp.Name == cachePool.Name {
+								found = true
+								break
+							}
+						}
+						if !found {
+							validCachePools = append(validCachePools, cachePool)
+						}
 					} else {
 						logger.Info("Node does not match CachePool", "node", node.Name, "cachePool", cachePool.Name)
 					}
@@ -170,7 +184,7 @@ func (r *NodeImagePoolReconciler) Reconcile(ctx context.Context, req ctrl.Reques
 			}
 		}
 
-		// Check to see if CacheConsumers are defined
+		// Check to see if CacheConsumers are defined and validate nodes against them
 		if len(nodeImagePool.Spec.CacheConsumers) == 0 {
 			logger.Info("No CacheConsumers defined, skipping reconciliation")
 			return ctrl.Result{}, nil
@@ -196,15 +210,34 @@ func (r *NodeImagePoolReconciler) Reconcile(ctx context.Context, req ctrl.Reques
 
 					if matches {
 						logger.Info("Node matches CacheConsumer", "node", node.Name, "cacheConsumer", cacheConsumer.Name)
+						// Add to validConsumerPools if not already present
+						found := false
+						for _, vcp := range validConsumerPools {
+							if vcp.Name == cacheConsumer.Name {
+								found = true
+								break
+							}
+						}
+						if !found {
+							validConsumerPools = append(validConsumerPools, cacheConsumer)
+						}
 					} else {
 						logger.Info("Node does not match CacheConsumer", "node", node.Name, "cacheConsumer", cacheConsumer.Name)
 					}
 				}
 			}
 		}
-	}
 
-	// TODO(user): your logic here
+		// Discount double-checking - ensure that we have at least one valid CachePool and CacheConsumer
+		if len(validCachePools) == 0 {
+			logger.Info("No valid CachePools found after evaluation, skipping reconciliation")
+			return ctrl.Result{}, nil
+		}
+		if len(validConsumerPools) == 0 {
+			logger.Info("No valid CacheConsumers found after evaluation, skipping reconciliation")
+			return ctrl.Result{}, nil
+		}
+	}
 
 	return ctrl.Result{}, nil
 }
